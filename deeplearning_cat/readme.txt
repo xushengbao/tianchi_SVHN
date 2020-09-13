@@ -5,10 +5,6 @@
 5.weights文件夹，里面为训练后得到的权重文件；
 6.submit.csv为补全YOLOV3检测结果的后的提交文件（由于会出现部分图片无法检测的情况，于是用其它模型的结果进行补全，如用定长的结果）。
 
-
-联系方式 -电话：17729831853；邮箱：chuanliu@stu.scu.edu.cn
-审核如有任何疑问，麻烦您通过以上方式联系我，谢谢！
-
 py文件简介：
 labelmeTOcoco.py    #把labelme数据转为coco格式的数据
 cocoTOvoc.py           #把coco格式的数据集转化为voc格式
