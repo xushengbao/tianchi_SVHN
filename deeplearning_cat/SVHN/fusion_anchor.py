@@ -1,0 +1,160 @@
+#把coco格式的数据集转化为voc格式
+from xml.dom import minidom
+import json
+import glob
+import os
+from shutil import copyfile
+# 将self.orderDict中的信息写入本地xml文件，参数filename是xml文件名
+
+def Convert_coco_to_voc(annotation_path,JPEGImage_path,out_path):
+    '''
+    将coco数据转换为voc数据
+    :param annotation_path:coco标记文件的地址
+    :param JPEGImage_path: coco图片数据集的位置
+    :param out_path: 生成的voc数据集保存的位置
+    :return:
+    '''
+    #先创建voc输出文件夹标准格式
+    outdir = out_path
+    # 创建各级文件夹
+    train_xml_out = os.path.join(outdir, 'VOC2007/Annotations')
+    if not os.path.exists(train_xml_out ):
+        os.makedirs(train_xml_out)
+    train_img_out = os.path.join(outdir, 'VOC2007/JPEGImages')
+    if not os.path.exists(train_img_out):
+        os.makedirs(train_img_out)
+
+
+    data = json.load(open(annotation_path, 'r'))
+    imgs = data['images']
+    annotations = data['annotations']
+    categorie=data["categories"]
+    #cate_list=list()
+    print('JSON文件中_图片总数:' + str(len(imgs)))
+    # for i in range(len(categorie)):
+    #     for ca in categorie:
+    #         if ca["id"]==i:
+    #             cate_list.append(ca["name"])
+    # print("JSON文件中_标注类别:" + str(cate_list))
+    #cate_list.append(1)
+    #print(len(categorie))
+
+    #遍历图片json列表
+    for img in imgs:
+        filename = img['filename']
+        print(filename)
+        img_w = img['width']
+        img_h = img['height']
+        img_id = img['id']
+        ana_txt_name = filename.split('.')[0] + '.txt'
+        roi_list=list()
+        #遍历图片标注信息列表
+        fusion = []
+        for ann in annotations:
+            if ann['image_id'] == img_id:
+                #图片和标记匹配
+                fusion.append(ann['bbox'])
+
+                #box = convert_boxshape((img_w, img_h), fusion)
+                #roi_list.append([cate_list[ann['category_id']],box[0], box[1], box[2], box[3]])
+                # roi_list.append([cate_list, box[0], box[1], box[2], box[3]])
+                # print(roi_list)
+        print(fusion)
+        box = convert_boxshape((img_w, img_h), fusion)
+        roi_list.append([1, int(box[0]), int(box[1]), int(box[2]), int(box[3])])
+        print(roi_list)
+        get_xml(filename, [img_w,img_h,3], roi_list,train_xml_out)
+        copyfile(os.path.join(JPEGImage_path, filename),os.path.join(train_img_out, filename,))
+
+def convert_boxshape(size, box):
+    '''
+    coco数据集标注是xmin,ymin,width,height 而voc和yolo是xmin ymin xmax ynax 需要进行转换
+    :param size: 图片宽 图片高
+    :param box:
+    :return:
+    '''
+
+    dw = size[0]   # 图像实际宽度
+    dh = size[1]  # 图像实际高度
+    #x=box[0]
+    #y=box[1]
+    x_min = box[0][0]  #标注区域X坐标 left
+    y_min = box[0][1]  #标注区域Y坐标 top
+    x_max = box[0][0] + box[0][2]   # 标注区域宽度 width
+    y_max = box[0][1] + box[0][3]   #标注区域高度 height
+
+    for i in range(len(box)):
+        x_min = min(x_min,box[i][0])
+        y_min = min(y_min, box[i][1])
+        x_max = max(x_max,box[i][0] + box[i][2])
+        y_max = max(y_max,box[i][1] + box[i][3] )
+
+    # xmin=int(x)
+    # ymin=int(y)
+    # xmax=int(x+w)
+    # ymax=int(y+h)
+    return (x_min, y_min, x_max, y_max)
+
+def get_xml(img_name,size,roi,outpath):
+    '''
+    传入每张图片的名称 大小 和标记点列表生成和图片名相同的xml标记文件
+    :param img_name: 图片名称
+    :param size:[width,height,depth]
+    :param roi:[["label1",xmin,ymin,xmax,ymax]["label2",xmin,ymin,xmax,ymax].....]
+    :return:
+    '''
+    impl = minidom.getDOMImplementation()
+    doc = impl.createDocument(None, None, None)
+    #创建根节点
+    orderlist = doc.createElement("annotation")
+    doc.appendChild(orderlist)
+    #c创建二级节点
+    filename=doc.createElement("filename")
+    filename.appendChild(doc.createTextNode(img_name))
+    orderlist.appendChild(filename)
+    #size节点
+    sizes=doc.createElement("size")
+    width=doc.createElement("width")
+    width.appendChild(doc.createTextNode(str(size[0])))
+    height=doc.createElement("height")
+    height.appendChild(doc.createTextNode(str(size[1])))
+    depth=doc.createElement("depth")
+    depth.appendChild(doc.createTextNode(str(size[2])))
+    sizes.appendChild(width)
+    sizes.appendChild(height)
+    sizes.appendChild(depth)
+    orderlist.appendChild(sizes)
+    #object 节点
+    for ri in roi:
+        object=doc.createElement("object")
+        name=doc.createElement("name")
+        name.appendChild(doc.createTextNode(str(ri[0])))
+        object.appendChild(name)
+        bndbox=doc.createElement("bndbox")
+
+        xmin=doc.createElement("xmin")
+        xmin.appendChild(doc.createTextNode(str(ri[1])))
+        bndbox.appendChild(xmin)
+        ymin=doc.createElement("ymin")
+        ymin.appendChild(doc.createTextNode(str(ri[2])))
+        bndbox.appendChild(ymin)
+        xmax=doc.createElement("xmax")
+        xmax.appendChild(doc.createTextNode(str(ri[3])))
+        bndbox.appendChild(xmax)
+        ymax=doc.createElement("ymax")
+        ymax.appendChild(doc.createTextNode(str(ri[4])))
+        bndbox.appendChild(ymax)
+        object.appendChild(bndbox)
+        orderlist.appendChild(object)
+         # 将dom对象写入本地xml文件
+
+    # 打开test.xml文件 准备写入
+    f = open(os.path.join(outpath,img_name[:-4]+'.xml'), 'w')
+    # 写入文件
+    doc.writexml(f, addindent='  ', newl='\n')
+    # 关闭
+    f.close()
+
+if __name__ == "__main__":
+    #传入coco的annotations.json地址，image文件存放的地址 和输出的voc数据存放地址
+    Convert_coco_to_voc("D:/data/SVHN/train_val/test/train+val_annos.json","D:/data/SVHN/train_val/train_val_img/","D:/data/SVHN/train_val/test/train_val_voc",)
